@@ -11,8 +11,8 @@ import sys
 from socket import *
 import threading
 
-class httpServer ():
-    def __init__ (self, port):
+class TcpServer ():
+    def __init__ (self, port = 1300):
         self.port = port
         #create a INET(IPV4), (STREAM) TCP socket
         try : 
@@ -30,29 +30,8 @@ class httpServer ():
             sys.exit(1)
         #start listening
         self.serverSocket.listen(5)
-        print (f'HTTP server listning on {self.port}')
-    
+        print (f'HTTP server listining at - {self.serverSocket.getsockname()}')
 
-    def client_thread (self):
-        #while True:
-        self.request_data = self.clientSocket.recv(5000).decode()
-        if not self.request_data.strip():
-            clientSocket.close()
-        print (self.request_data)   
-        self.interpret()
-        string = "HTTP/1.1 200 OK\n\n<b> Hello There <!b>"
-        self.clientSocket.send(string.encode())
-        self.clientSocket.close()
-    
-    def interpret (self):
-        #extracting the request line
-        request_line = self.request_data.splitlines()[0].rstrip('\r\n')
-        (self.request_method, self.url_path, self.http_version) = request_line.split()
-        if self.request_method == "GET":
-            pass
-        else:
-            print ("hey")
-    
     def serve (self):
         while True:
             #accept outside connection
@@ -67,13 +46,47 @@ class httpServer ():
             
         self.serverSocket.close()
 
+    def client_thread (self):
+        #while True:
+        request_data = self.clientSocket.recv(1024).decode()
+        print (request_data)   
+        self.handle_request(request_data)
+        self.clientSocket.close()
+    
+    def handle_request(self, request_data):
+        pass
+    
+class HttpServer(TcpServer):
+    headers = {
+                "Server" : "Nikhil's Server (Pop-os)",
+                "Date" : "Thu, 08 Oct 2020 12:40:27 GMT",
+                "Last-Modified" : "Thu, 08 Oct 2020 12:40:27 GMT"
+              }
+
+    status = {
+                200 : 'OK',
+                400 : 'Bad Request',
+                505 : 'HTTP Version not supported'
+             }
+    
+    def handle_request(self, request_data):
+        request = HttpRequest(request_data)
+
+class HttpRequest:
+    def __init__(self, request_data):
+        #defining the request attributes
+        self.method = None
+        self.uri = None
+        self.version = None
+        self.headers = {}
+
+        self.parse_request(request_data)
+    
+    def parse_request (self, request_data):
+        lines = request_data.splitlines('\r\n')
+        print (line for line in lines)
+        
 
 if __name__ == "__main__":
-    try:
-        port = int (sys.argv[1])
-    except:
-        print (f"usage : sys.argv[0] port-number")
-        sys.exit(1)
-    
-    server = httpServer(port)
+    server = TcpServer()
     server.serve()
