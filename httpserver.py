@@ -50,8 +50,8 @@ class TcpServer ():
         #while True:
         request_data = self.clientSocket.recv(1024).decode()
         print (request_data)   
-        self.handle_request(request_data)
-        self.clientSocket.close()
+        response = self.handle_request(request_data)
+        self.clientSocket.send(response.encode())
     
     def handle_request(self, request_data):
         pass
@@ -69,18 +69,47 @@ class HttpServer(TcpServer):
                 505 : 'HTTP Version not supported'
              }
     
+    #handle all the request and return response
     def handle_request(self, request_data):
         request = HttpRequest(request_data)
+        #using getattr to handle the particular method returned from the request method
+        #getattr because we don't know the name of the method at the time
+        try:
+            response = getattr(self, f'handle_{request.method}')(request)
+        except AttributeError:
+            response = self.handle_501_error()
+        return response
+
+    def handle_501_error(self):
+        pass
+
+
+    #handle get request
+    def handle_GET(self, request):
+        status_line = self.status_line(200)
+        response_headers = self.response_headers()
+        empty_line = "\r\n"
+        return f"{status_line}{response_headers}{empty_line}"
+
+    #create a status line
+    def status_line(self, status_code):
+        status_line = f"HTTP/1.1 {status_code} {self.status[status_code]}\r\n"
+        return status_line
+
+    #create response headers
+    def response_headers (self):
+        response_headers = ''.join(f"{header}: {self.headers[header]}\r\n" for header in self.headers)
+        return response_headers
 
 class HttpRequest:
     def __init__(self, request_data):
         #defining the request attributes
-        self.method = None
+        self.method = 'GET'
         self.uri = None
         self.version = None
         self.headers = {}
 
-        self.parse_request(request_data)
+        #self.parse_request(request_data)
     
     def parse_request (self, request_data):
         lines = request_data.splitlines('\r\n')
@@ -88,5 +117,5 @@ class HttpRequest:
         
 
 if __name__ == "__main__":
-    server = TcpServer()
+    server = HttpServer()
     server.serve()
