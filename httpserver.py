@@ -12,7 +12,7 @@ from socket import *
 import threading
 
 class httpServer ():
-    def __init__ (self, port = 1300):
+    def __init__ (self, port):
         self.port = port
         #create a INET(IPV4), (STREAM) TCP socket
         try : 
@@ -71,10 +71,9 @@ class httpServer ():
 if __name__ == "__main__":
     try:
         port = int (sys.argv[1])
-        server = httpServer(port)
-    except ValueError:
-        print (f"usage : sys.argv[0] [port-number]")
-        sys.exit(1)
     except:
-        server = httpServer()
+        print (f"usage : sys.argv[0] port-number")
+        sys.exit(1)
+    
+    server = httpServer(port)
     server.serve()
