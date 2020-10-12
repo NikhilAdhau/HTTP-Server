@@ -10,6 +10,7 @@
 import sys
 from socket import *
 import threading
+import os
 
 class TcpServer ():
     def __init__ (self, port = 1300):
@@ -36,22 +37,23 @@ class TcpServer ():
         while True:
             #accept outside connection
             try:
-                (self.clientSocket, self.address) = self.serverSocket.accept()
+                (clientSocket, self.address) = self.serverSocket.accept()
             except KeyboardInterrupt:
                 print ("\nShutting down the server.....")
                 sys.exit()
             print (f"New connection request from {self.address}")
-            thread = threading.Thread(target = self.client_thread)
+            thread = threading.Thread(target = self.client_thread, args = [clientSocket])
             thread.start()
             
         self.serverSocket.close()
 
-    def client_thread (self):
+    def client_thread (self, clientSocket):
         #while True:
-        request_data = self.clientSocket.recv(1024).decode()
+        request_data = clientSocket.recv(1024).decode()
         print (request_data)   
         response = self.handle_request(request_data)
-        self.clientSocket.send(response.encode())
+        clientSocket.send(response.encode())
+        clientSocket.close()
     
     def handle_request(self, request_data):
         pass
@@ -66,6 +68,8 @@ class HttpServer(TcpServer):
     status = {
                 200 : 'OK',
                 400 : 'Bad Request',
+                404 : 'Not Found',
+                501 : 'Not Implemented',
                 505 : 'HTTP Version not supported'
              }
     
@@ -81,11 +85,40 @@ class HttpServer(TcpServer):
         return response
 
     def handle_501_error(self):
-        pass
+        status_line = self.status_line(501)
+        response_headers = self.response_headers()
+        return f"{status_line}{response_headers}\r\n"
 
+    #handle 400 error
+    def handle_400_error(self, request):
+        status_line = self.status_line(400)
+        response_headers = self.response_headers()
+        return f"{status_line}{response_headers}\r\n"
 
     #handle get request
     def handle_GET(self, request):
+        #host field is required in HTTP/1.1
+        #if 'HOST' in request.headers:
+        #    status_line = self.status_line(200)
+        #else:
+        #    status_line = self.status_line(400)
+
+        #handle the uri
+        file = request.uri.strip('/')
+        
+        if os.path.exists(file):
+            status_line = self.status_line(200)
+            with open(file) as f:
+                response_body = f.read()
+        else:
+            status_line = self.status_line(404)
+            response_body = "<b> File Not Found! <!b>"
+        response_headers = self.response_headers()
+        empty_line = "\r\n"
+        return f"{status_line}{response_headers}{empty_line}{response_body}"
+
+    #handle post request
+    def handle_POST(self, request):
         status_line = self.status_line(200)
         response_headers = self.response_headers()
         empty_line = "\r\n"
@@ -104,17 +137,32 @@ class HttpServer(TcpServer):
 class HttpRequest:
     def __init__(self, request_data):
         #defining the request attributes
-        self.method = 'GET'
+        self.method = None 
         self.uri = None
         self.version = None
         self.headers = {}
 
-        #self.parse_request(request_data)
+        self.parse_request(request_data)
     
     def parse_request (self, request_data):
-        lines = request_data.splitlines('\r\n')
-        print (line for line in lines)
+        lines = request_data.split('\r\n')
+        #parse the request_line
+        self.request_line(lines[0])
+        #parse the request headers
+        self.request_headers(lines[1:])
         
+    def request_line (self, request_line):
+        try:
+            (self.method, self.uri, self.version) = request_line.split()
+        except ValueError:
+            self.method = '400_error'
+
+    def request_headers (self, lines):
+        for line in lines:
+            if not line.rstrip('\r\n'):
+                break
+            (field_name, field_value) = line.split(':', 1)
+            self.headers[field_name] = field_value 
 
 if __name__ == "__main__":
     server = HttpServer()
