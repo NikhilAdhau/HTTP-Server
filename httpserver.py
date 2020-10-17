@@ -11,6 +11,9 @@ import sys
 from socket import *
 import threading
 import os
+from wsgiref.handlers import format_date_time
+from datetime import datetime
+from time import mktime
 
 class TcpServer ():
     def __init__ (self, port = 1300):
@@ -59,10 +62,10 @@ class TcpServer ():
         pass
     
 class HttpServer(TcpServer):
+
     headers = {
-                "Server" : "Nikhil's Server (Pop-os)",
-                "Date" : "Thu, 08 Oct 2020 12:40:27 GMT",
-                "Last-Modified" : "Thu, 08 Oct 2020 12:40:27 GMT"
+                "Server" : "Nikhil's Server (Fedora)",
+                "Date" : None
               }
 
     status = {
@@ -76,46 +79,30 @@ class HttpServer(TcpServer):
     #handle all the request and return response
     def handle_request(self, request_data):
         request = HttpRequest(request_data)
-        #using getattr to handle the particular method returned from the request method
-        #getattr because we don't know the name of the method at the time
-        try:
-            response = getattr(self, f'handle_{request.method}')(request)
-        except AttributeError:
-            response = self.handle_501_error()
+        #if request data has any errors
+        if request.error or 'host' not in request.headers.keys():
+            response = self.handle_errors(400)
+        else:
+            #using getattr to handle the particular method returned from the request method
+            #getattr because we don't know the name of the method at the time
+            try:
+                response = getattr(self, f'handle_{request.method}')(request)
+            except AttributeError:
+                response = self.handle_errors(501)
         return response
 
-    def handle_501_error(self):
-        status_line = self.status_line(501)
-        response_headers = self.response_headers()
-        return f"{status_line}{response_headers}\r\n"
-
-    #handle 400 error
-    def handle_400_error(self, request):
-        status_line = self.status_line(400)
-        response_headers = self.response_headers()
-        return f"{status_line}{response_headers}\r\n"
-
-    #handle get request
     def handle_GET(self, request):
-        #host field is required in HTTP/1.1
-        #if 'HOST' in request.headers:
-        #    status_line = self.status_line(200)
-        #else:
-        #    status_line = self.status_line(400)
-
-        #handle the uri
-        file = request.uri.strip('/')
-        
-        if os.path.exists(file):
-            status_line = self.status_line(200)
-            with open(file) as f:
-                response_body = f.read()
+        filename = request.uri
+        response_body, file_info = self.handle_uri(filename)
+        #if the requested file is not found
+        if not response_body:
+            return self.handle_errors(404)
         else:
-            status_line = self.status_line(404)
-            response_body = "<b> File Not Found! <!b>"
-        response_headers = self.response_headers()
-        empty_line = "\r\n"
-        return f"{status_line}{response_headers}{empty_line}{response_body}"
+            status_line = self.status_line(200)
+            extra_headers = {'Content-Length' : file_info.st_size, 'Last-Modified' : format_date_time(file_info.st_mtime)}
+            response_headers = self.response_headers(extra_headers)
+            empty_line = "\r\n"
+            return f"{status_line}{response_headers}{empty_line}{response_body}"
 
     #handle post request
     def handle_POST(self, request):
@@ -130,17 +117,47 @@ class HttpServer(TcpServer):
         return status_line
 
     #create response headers
-    def response_headers (self):
-        response_headers = ''.join(f"{header}: {self.headers[header]}\r\n" for header in self.headers)
+    def response_headers (self, extra_headers):
+        #get the current date & time
+        now = datetime.now()
+        stamp = mktime(now.timetuple())
+        current_date_time = format_date_time(stamp)
+        self.headers['Date'] = current_date_time
+        general_headers = ''.join(f"{header}: {self.headers[header]}\r\n" for header in self.headers)
+        entity_headers = ''.join(f"{header}: {extra_headers[header]}\r\n" for header in extra_headers)
+        response_headers = general_headers + entity_headers
         return response_headers
+    
+    #handle the URI
+    #it returns the file requested as well as it's metadata
+    def handle_uri (self, filename):
+        filename = filename.strip('/')
+        if len(filename) == 0:
+            filename = "index.html"
+        #if the file is present in the directory it will return the file
+        if os.path.exists(filename):
+            with open(filename) as f:
+                response_body = f.read()
+            return response_body, os.stat(filename)
+        else:
+            return False, False
+    
+    #handle error
+    def handle_errors(self, error_code):
+        status_line = self.status_line(error_code)
+        response_headers = self.response_headers('')
+        return f"{status_line}{response_headers}\r\n"
 
 class HttpRequest:
+    
     def __init__(self, request_data):
         #defining the request attributes
         self.method = None 
         self.uri = None
         self.version = None
         self.headers = {}
+        #if request has any error
+        self.error  = False
 
         self.parse_request(request_data)
     
@@ -155,14 +172,19 @@ class HttpRequest:
         try:
             (self.method, self.uri, self.version) = request_line.split()
         except ValueError:
-            self.method = '400_error'
+            self.error = True
 
     def request_headers (self, lines):
         for line in lines:
+            #to check if the line is empty
             if not line.rstrip('\r\n'):
                 break
-            (field_name, field_value) = line.split(':', 1)
-            self.headers[field_name] = field_value 
+            try:
+                (field_name, field_value) = line.split(':', 1)
+                self.headers[field_name.lower()] = field_value 
+            except ValueError:
+                self.error = True
+                break
 
 if __name__ == "__main__":
     server = HttpServer()
