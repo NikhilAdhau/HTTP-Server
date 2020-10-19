@@ -14,6 +14,8 @@ import os
 from wsgiref.handlers import format_date_time
 from datetime import datetime
 from time import mktime
+import mimetypes
+
 
 class TcpServer ():
     def __init__ (self, port = 1300):
@@ -54,8 +56,15 @@ class TcpServer ():
         #while True:
         request_data = clientSocket.recv(1024).decode()
         print (request_data)   
-        response = self.handle_request(request_data)
+        response, fd = self.handle_request(request_data)
+        #print (f"response ----- \n {response}")
         clientSocket.send(response.encode())
+        if fd:
+            try :
+                clientSocket.sendfile(fd)
+                fd.close()
+            except:
+                 pass
         clientSocket.close()
     
     def handle_request(self, request_data):
@@ -81,28 +90,32 @@ class HttpServer(TcpServer):
         request = HttpRequest(request_data)
         #if request data has any errors
         if request.error or 'host' not in request.headers.keys():
-            response = self.handle_errors(400)
+            response, fd = self.handle_errors(400)
         else:
             #using getattr to handle the particular method returned from the request method
             #getattr because we don't know the name of the method at the time
             try:
-                response = getattr(self, f'handle_{request.method}')(request)
+                
+                response, fd = getattr(self, f'handle_{request.method}')(request)
             except AttributeError:
-                response = self.handle_errors(501)
-        return response
+                response, fd = self.handle_errors(501)
+        return response, fd
 
     def handle_GET(self, request):
         filename = request.uri
-        response_body, file_info = self.handle_uri(filename)
+        response_body, fd = self.handle_uri(filename)
         #if the requested file is not found
-        if not response_body:
+        if response_body == None:
             return self.handle_errors(404)
         else:
             status_line = self.status_line(200)
-            extra_headers = {'Content-Length' : file_info.st_size, 'Last-Modified' : format_date_time(file_info.st_mtime)}
+            filename = fd.name
+            file_info = os.stat(filename)
+            file_type = mimetypes.guess_type(filename)
+            extra_headers = {'Content-Length' : file_info.st_size, 'Last-Modified' : format_date_time(file_info.st_mtime), 'Content-Type' : file_type}
             response_headers = self.response_headers(extra_headers)
             empty_line = "\r\n"
-            return f"{status_line}{response_headers}{empty_line}{response_body}"
+            return f"{status_line}{response_headers}{empty_line}{response_body}", fd
 
     #handle post request
     def handle_POST(self, request):
@@ -136,17 +149,22 @@ class HttpServer(TcpServer):
             filename = "index.html"
         #if the file is present in the directory it will return the file
         if os.path.exists(filename):
-            with open(filename) as f:
-                response_body = f.read()
-            return response_body, os.stat(filename)
+            file_type = mimetypes.guess_type(filename)[0]
+            if file_type == 'text/html':
+                with open(filename, 'r') as f:
+                    response_body = f.read()
+            else:
+                f = open (filename, 'rb')
+                response_body = ''
+            return response_body, f
         else:
-            return False, False
+            return None, None
     
     #handle error
     def handle_errors(self, error_code):
         status_line = self.status_line(error_code)
         response_headers = self.response_headers('')
-        return f"{status_line}{response_headers}\r\n"
+        return f"{status_line}{response_headers}\r\n", None
 
 class HttpRequest:
     
