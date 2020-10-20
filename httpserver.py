@@ -15,11 +15,13 @@ from wsgiref.handlers import format_date_time
 from datetime import datetime
 from time import mktime
 import mimetypes
+from configparser import ConfigParser, ExtendedInterpolation
+import logging
 
 
 class TcpServer ():
-    def __init__ (self, port = 1300):
-        self.port = port
+    def __init__ (self):
+        self.port = parser.getint('settings', 'port')
         #create a INET(IPV4), (STREAM) TCP socket
         try : 
             self.serverSocket = socket (AF_INET, SOCK_STREAM)
@@ -36,7 +38,7 @@ class TcpServer ():
             sys.exit(1)
         #start listening
         self.serverSocket.listen(5)
-        print (f'HTTP server listining at - {self.serverSocket.getsockname()}')
+        print (f'HTTP server listening at address \"{self.serverSocket.getsockname()[0]}:{self.serverSocket.getsockname()[1]}\"\n---------------------------------------------------------------------------')
 
     def serve (self):
         while True:
@@ -58,7 +60,7 @@ class TcpServer ():
         print (request_data)   
         response, fd = self.handle_request(request_data)
         #print (f"response ----- \n {response}")
-        clientSocket.send(response.encode())
+        clientSocket.sendall(response.encode())
         if fd:
             try :
                 clientSocket.sendfile(fd)
@@ -66,7 +68,7 @@ class TcpServer ():
             except:
                  pass
         clientSocket.close()
-    
+        
     def handle_request(self, request_data):
         pass
     
@@ -95,15 +97,18 @@ class HttpServer(TcpServer):
             #using getattr to handle the particular method returned from the request method
             #getattr because we don't know the name of the method at the time
             try:
-                
                 response, fd = getattr(self, f'handle_{request.method}')(request)
             except AttributeError:
-                response, fd = self.handle_errors(501)
+                #as HEAD method is similar to GET method
+                if request.method == 'HEAD':
+                    response, fd = self.handle_GET(request)
+                else:
+                    response, fd = self.handle_errors(501)
         return response, fd
 
+    #handle GET request
     def handle_GET(self, request):
-        filename = request.uri
-        response_body, fd = self.handle_uri(filename)
+        response_body, fd = self.handle_uri(request.uri)
         #if the requested file is not found
         if response_body == None:
             return self.handle_errors(404)
@@ -111,11 +116,14 @@ class HttpServer(TcpServer):
             status_line = self.status_line(200)
             filename = fd.name
             file_info = os.stat(filename)
-            file_type = mimetypes.guess_type(filename)
+            file_type = mimetypes.guess_type(filename)[0]
             extra_headers = {'Content-Length' : file_info.st_size, 'Last-Modified' : format_date_time(file_info.st_mtime), 'Content-Type' : file_type}
             response_headers = self.response_headers(extra_headers)
             empty_line = "\r\n"
+            if request.method == 'HEAD':
+                return f"{status_line}{response_headers}{empty_line}{response_body}", None 
             return f"{status_line}{response_headers}{empty_line}{response_body}", fd
+
 
     #handle post request
     def handle_POST(self, request):
@@ -205,5 +213,12 @@ class HttpRequest:
                 break
 
 if __name__ == "__main__":
+    #import config file
+    parser = ConfigParser(interpolation = ExtendedInterpolation())
+    parser.read('myserver.conf')
+    #Change the Document directory 
+    os.chdir(parser.get('paths', 'DocumentRoot'))
+    #logging
+    logging.basicConfig(filename = parser.get('files', 'logfile'), level = logging.INFO)
     server = HttpServer()
     server.serve()
