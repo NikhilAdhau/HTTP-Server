@@ -81,8 +81,38 @@ class HttpServer(TcpServer):
 
     status = {
                 200 : 'OK',
+                201 : 'Created',
+                202 : 'Accepted',
+                203 : 'Non-Authoritative Information',
+                204 : 'No Content',
+                205 : 'Reset Content',
+                206 : 'Partial Content',
+                300 : 'Multiple Choices',
+                301 : 'Moved Permanently',
+                302 : 'Found',
+                303 : 'See Other',
+                304 : 'Not Modified',
+                305 : 'Use Proxy',
+                307 : 'Temporary Redirect',
                 400 : 'Bad Request',
+                401 : 'Unauthorized',
+                402 : 'Payment Required',
+                403 : 'Forbidden',
                 404 : 'Not Found',
+                405 : 'Method Not Allowed',
+                406 : 'Not Acceptable',
+                407 : 'Proxy Authentication Required',
+                408 : 'Request Timeout',
+                409 : 'Conflict',
+                410 : 'Gone',
+                411 : 'Length Required',
+                412 : 'Precondition Failed',
+                413 : 'Payload Too Large',
+                414 : 'URI Too Long',
+                415 : 'Unsupported Media Type',
+                416 : 'Range Not Satisfiable',
+                417 : 'Expectation Failed',
+                426 : 'Upgrade Required',
                 501 : 'Not Implemented',
                 505 : 'HTTP Version not supported'
              }
@@ -108,13 +138,13 @@ class HttpServer(TcpServer):
 
     #handle GET request
     def handle_GET(self, request):
-        response_body, fd = self.handle_uri(request.uri)
+        filename= self.check_uri(request.uri)
         #if the requested file is not found
-        if response_body == None:
+        if filename == None:
             return self.handle_errors(404)
         else:
+            response_body, fd = self.response_body(filename)
             status_line = self.status_line(200)
-            filename = fd.name
             file_info = os.stat(filename)
             file_type = mimetypes.guess_type(filename)[0]
             extra_headers = {'Content-Length' : file_info.st_size, 'Last-Modified' : format_date_time(file_info.st_mtime), 'Content-Type' : file_type}
@@ -131,6 +161,19 @@ class HttpServer(TcpServer):
         response_headers = self.response_headers()
         empty_line = "\r\n"
         return f"{status_line}{response_headers}{empty_line}"
+
+    #handle delete request
+    def handle_DELETE(self, request):
+        filename = self.check_uri(request.uri)
+        if filename == None:
+            return self.handle_errors(404)
+        else:
+            os.remove(filename)
+            status_line = self.status_line(200)
+            response_headers = self.response_headers('')
+            empty_line = '\r\n'
+            response_body = "<b> file has been deleted </b>"
+            return f"{status_line}{response_headers}{empty_line}{response_body}", None  
 
     #create a status line
     def status_line(self, status_code):
@@ -151,23 +194,27 @@ class HttpServer(TcpServer):
     
     #handle the URI
     #it returns the file requested as well as it's metadata
-    def handle_uri (self, filename):
+    def check_uri (self, filename):
         filename = filename.strip('/')
         if len(filename) == 0:
             filename = "index.html"
-        #if the file is present in the directory it will return the file
+        #if the file is present in the directory it will return the filename
         if os.path.exists(filename):
-            file_type = mimetypes.guess_type(filename)[0]
-            if file_type == 'text/html':
-                with open(filename, 'r') as f:
-                    response_body = f.read()
-            else:
-                f = open (filename, 'rb')
-                response_body = ''
-            return response_body, f
+            return filename
         else:
-            return None, None
+            return None
     
+    #handle response_body
+    def response_body(self, filename):
+        file_type = mimetypes.guess_type(filename)[0]
+        if file_type == 'text/html':
+            with open(filename, 'r') as f:
+                response_body = f.read()
+        else:
+            f = open (filename, 'rb')
+            response_body = ''
+        return response_body, f
+
     #handle error
     def handle_errors(self, error_code):
         status_line = self.status_line(error_code)
