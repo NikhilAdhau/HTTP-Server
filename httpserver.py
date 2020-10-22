@@ -158,9 +158,9 @@ class HttpServer(TcpServer):
     #handle post request
     def handle_POST(self, request):
         status_line = self.status_line(200)
-        response_headers = self.response_headers()
+        response_headers = self.response_headers('')
         empty_line = "\r\n"
-        return f"{status_line}{response_headers}{empty_line}"
+        return f"{status_line}{response_headers}{empty_line}", None
 
     #handle delete request
     def handle_DELETE(self, request):
@@ -239,7 +239,9 @@ class HttpRequest:
         #parse the request_line
         self.request_line(lines[0])
         #parse the request headers
-        self.request_headers(lines[1:])
+        index = self.request_headers(lines[1:])
+        print (index)
+        self.request_body(lines[index + 2:])
         
     def request_line (self, request_line):
         try:
@@ -248,7 +250,9 @@ class HttpRequest:
             self.error = True
 
     def request_headers (self, lines):
-        for line in lines:
+        i = 0
+        for index,line in enumerate(lines):
+            i = index
             #to check if the line is empty
             if not line.rstrip('\r\n'):
                 break
@@ -258,12 +262,17 @@ class HttpRequest:
             except ValueError:
                 self.error = True
                 break
+        return i
+
+    def request_body(self, payload): 
+        self.payload = '\r\n'.join(line for line in payload)
+        print (self.payload)
 
 if __name__ == "__main__":
     #import config file
     parser = ConfigParser(interpolation = ExtendedInterpolation())
     parser.read('myserver.conf')
-    #Change the Document directory 
+    #Change the Document directory as per config file
     os.chdir(parser.get('paths', 'DocumentRoot'))
     #logging
     logging.basicConfig(filename = parser.get('files', 'logfile'), level = logging.INFO)
