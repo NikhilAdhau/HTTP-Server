@@ -1,0 +1,36 @@
+INFO:root:working
+INFO:root:working
+INFO:root:working
+INFO:root:working
+INFO:root:working
+INFO:root:working
+INFO:root:127.0.0.1 -  - [27/Oct/2020:21:12:16 ] "GET / HTTP/1.1"
+INFO:root:127.0.0.1 -  - [27/Oct/2020:21:12:16 ] "GET /image1.jpg HTTP/1.1"
+INFO:root:127.0.0.1 -  - [27/Oct/2020:21:12:16 ] "GET /wallp.jpg HTTP/1.1"
+INFO:root:127.0.0.1 -  - [27/Oct/2020:21:16:16 ] "GET /image1.jpg HTTP/1.1"
+INFO:root:127.0.0.1 -  - [27/Oct/2020:21:18:02 ] "GET / HTTP/1.1"
+INFO:root:127.0.0.1 -  - [27/Oct/2020:21:18:02 ] "GET /image1.jpg HTTP/1.1"
+INFO:root:127.0.0.1 -  - [27/Oct/2020:21:18:02 ] "GET /wallp.jpg HTTP/1.1"
+127.0.0.1 -  - [27/Oct/2020:21:19:23 ] "GET / HTTP/1.1"
+127.0.0.1 -  - [27/Oct/2020:21:19:23 ] "GET /image1.jpg HTTP/1.1"
+127.0.0.1 -  - [27/Oct/2020:21:19:23 ] "GET /wallp.jpg HTTP/1.1"
+127.0.0.1 -  - [27/Oct/2020:21:39:40 ] "GET / HTTP/1.1" 200
+127.0.0.1 -  - [27/Oct/2020:21:39:40 ] "GET /image1.jpg HTTP/1.1" 200
+127.0.0.1 -  - [27/Oct/2020:21:39:40 ] "GET /wallp.jpg HTTP/1.1" 200
+127.0.0.1 -  - [27/Oct/2020:21:55:07 ] "HEAD /image1.jpg HTTP/1.1" 200
+127.0.0.1 -  - [27/Oct/2020:22:02:28 ] "GET / HTTP/1.1" 200 134
+127.0.0.1 -  - [27/Oct/2020:22:02:28 ] "GET /image1.jpg HTTP/1.1" 200 2356930
+127.0.0.1 -  - [27/Oct/2020:22:02:28 ] "GET /wallp.jpg HTTP/1.1" 200 2381270
+127.0.0.1 -  - [27/Oct/2020:22:08:16 ] "GET / HTTP/1.1" 200 134
+127.0.0.1 -  - [27/Oct/2020:22:08:16 ] "GET /image1.jpg HTTP/1.1" 200 2356930
+127.0.0.1 -  - [27/Oct/2020:22:08:16 ] "GET /wallp.jpg HTTP/1.1" 200 2381270
+127.0.0.1 -  - [27/Oct/2020:22:13:19 ] "GET /errors_html/css/style.css HTTP/1.1" 200 1911
+127.0.0.1 -  - [27/Oct/2020:22:21:02 ] "GET /400 HTTP/1.1" 404 1402
+127.0.0.1 -  - [27/Oct/2020:22:24:24 ] "GET / HTTP/1.1" 200 134
+127.0.0.1 -  - [27/Oct/2020:22:24:24 ] "GET /image1.jpg HTTP/1.1" 200 2356930
+127.0.0.1 -  - [27/Oct/2020:22:24:24 ] "GET /wallp.jpg HTTP/1.1" 200 2381270
+127.0.0.1 -  - [27/Oct/2020:22:31:11 ] "GET /info.txt HTTP/1.1" 200 592 "-" " Mozilla/5.0 (X11; Fedora; Linux x86_64; rv:82.0) Gecko/20100101 Firefox/82.0"
+127.0.0.1 -  - [27/Oct/2020:22:35:20 ] "GET / HTTP/1.1" 200 134 "-" " Mozilla/5.0 (X11; Fedora; Linux x86_64; rv:82.0) Gecko/20100101 Firefox/82.0"
+127.0.0.1 -  - [27/Oct/2020:22:35:20 ] "GET /image1.jpg HTTP/1.1" 200 2356930 " http://localhost:1300/" " Mozilla/5.0 (X11; Fedora; Linux x86_64; rv:82.0) Gecko/20100101 Firefox/82.0"
+127.0.0.1 -  - [27/Oct/2020:22:35:20 ] "GET /wallp.jpg HTTP/1.1" 200 2381270 " http://localhost:1300/" " Mozilla/5.0 (X11; Fedora; Linux x86_64; rv:82.0) Gecko/20100101 Firefox/82.0"
+127.0.0.1 -  - [27/Oct/2020:22:38:02 ] "GET /form1.html HTTP/1.1" 200 9458 "-" "Mozilla/5.0 (X11; Fedora; Linux x86_64; rv:82.0) Gecko/20100101 Firefox/82.0"

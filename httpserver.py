@@ -121,8 +121,10 @@ class HttpServer(TcpServer):
     def handle_request(self, request_data):
         request = HttpRequest(request_data)
         #if request data has any errors
-        if request.error or 'host' not in request.headers.keys():
-            response, fd = self.handle_errors(400)
+       # if request.error or 'host' not in request.headers.keys():
+        if request.error :
+            self.response_code = 400
+            response, fd = self.handle_errors(request, self.response_code)
         else:
             #using getattr to handle the particular method returned from the request method
             #getattr because we don't know the name of the method at the time
@@ -133,7 +135,8 @@ class HttpServer(TcpServer):
                 if request.method == 'HEAD':
                     response, fd = self.handle_GET(request)
                 else:
-                    response, fd = self.handle_errors(501)
+                    self.response_code = 501
+                    response, fd = self.handle_errors(request, self.response_code)
         return response, fd
 
     #handle GET request
@@ -141,17 +144,22 @@ class HttpServer(TcpServer):
         filename= self.check_uri(request.uri)
         #if the requested file is not found
         if filename == None:
-            return self.handle_errors(404)
+            self.response_code = 404
+            return self.handle_errors(request, self.response_code)
         else:
             response_body, fd = self.response_body(filename)
-            status_line = self.status_line(200)
+            self.response_code = 200
+            status_line = self.status_line(self.response_code)
             file_info = os.stat(filename)
+            self.file_size = file_info.st_size
             file_type = mimetypes.guess_type(filename)[0]
-            extra_headers = {'Content-Length' : file_info.st_size, 'Last-Modified' : format_date_time(file_info.st_mtime), 'Content-Type' : file_type}
+            extra_headers = {'Content-Length' : self.file_size, 'Last-Modified' : format_date_time(file_info.st_mtime), 'Content-Type' : file_type}
             response_headers = self.response_headers(extra_headers)
             empty_line = "\r\n"
             if request.method == 'HEAD':
+                self.handle_logging(request)
                 return f"{status_line}{response_headers}{empty_line}{response_body}", None 
+            self.handle_logging(request, self.file_size)
             return f"{status_line}{response_headers}{empty_line}{response_body}", fd
 
 
@@ -160,6 +168,7 @@ class HttpServer(TcpServer):
         status_line = self.status_line(200)
         response_headers = self.response_headers('')
         empty_line = "\r\n"
+        print (request.payload)
         return f"{status_line}{response_headers}{empty_line}", None
 
     #handle delete request
@@ -216,10 +225,23 @@ class HttpServer(TcpServer):
         return response_body, f
 
     #handle error
-    def handle_errors(self, error_code):
+    def handle_errors(self, request, error_code):
         status_line = self.status_line(error_code)
         response_headers = self.response_headers('')
-        return f"{status_line}{response_headers}\r\n", None
+        error_file = errors_dir + '/' + str(error_code) + '.html'
+        with open(error_file) as f:
+            response_body = f.read()
+        self.handle_logging(request, os.stat(error_file).st_size)
+        return f"{status_line}{response_headers}{response_body}\r\n", None
+
+    #logging
+    def handle_logging(self, request, file_size = "-"):
+        if 'referer' in request.headers.keys():
+            ref = request.headers['referer'].lstrip()
+        else:
+            ref = '-'
+        mesg = f"{self.address[0]} -  - [{datetime.now().strftime('%d/%b/%Y:%H:%M:%S %Z')}] \"{request.method} {request.uri} {request.version}\" {self.response_code} {file_size} \"{ref}\" \"{request.headers['user-agent'].lstrip()}\""
+        logger.info(mesg)
 
 class HttpRequest:
     
@@ -240,7 +262,6 @@ class HttpRequest:
         self.request_line(lines[0])
         #parse the request headers
         index = self.request_headers(lines[1:])
-        print (index)
         self.request_body(lines[index + 2:])
         
     def request_line (self, request_line):
@@ -266,7 +287,6 @@ class HttpRequest:
 
     def request_body(self, payload): 
         self.payload = '\r\n'.join(line for line in payload)
-        print (self.payload)
 
 if __name__ == "__main__":
     #import config file
@@ -274,7 +294,11 @@ if __name__ == "__main__":
     parser.read('myserver.conf')
     #Change the Document directory as per config file
     os.chdir(parser.get('paths', 'DocumentRoot'))
+    #errors_file
+    errors_dir = parser.get('files', 'errorfiles')
     #logging
-    logging.basicConfig(filename = parser.get('files', 'logfile'), level = logging.INFO)
+    logger = logging.getLogger()
+    log_format = '%(message)s'
+    logging.basicConfig(filename = parser.get('files', 'logfile'), level = logging.DEBUG, format = log_format)
     server = HttpServer()
     server.serve()

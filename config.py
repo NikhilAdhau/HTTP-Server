@@ -15,7 +15,8 @@ config['paths'] = {
 
 #file section
 config['files'] = {
-        'logfile' : '${paths:ServerRoot}/access.log' 
+        'logfile' : '${paths:ServerRoot}/access.log',
+        'errorfiles' : '${paths:ServerRoot}/errors_html'
         }
 
 with open ('myserver.conf', 'w') as configfile:
