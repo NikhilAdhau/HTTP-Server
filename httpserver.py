@@ -154,7 +154,7 @@ class HttpServer(TcpServer):
             self.file_size = file_info.st_size
             file_type = mimetypes.guess_type(filename)[0]
             extra_headers = {'Content-Length' : self.file_size, 'Last-Modified' : format_date_time(file_info.st_mtime), 'Content-Type' : file_type}
-            response_headers = self.response_headers(extra_headers)
+            response_headers = self.response_headers(request, extra_headers)
             empty_line = "\r\n"
             if request.method == 'HEAD':
                 self.handle_logging(request)
@@ -166,7 +166,7 @@ class HttpServer(TcpServer):
     #handle post request
     def handle_POST(self, request):
         status_line = self.status_line(200)
-        response_headers = self.response_headers('')
+        response_headers = self.response_headers(request, '')
         empty_line = "\r\n"
         print (request.payload)
         return f"{status_line}{response_headers}{empty_line}", None
@@ -179,7 +179,7 @@ class HttpServer(TcpServer):
         else:
             os.remove(filename)
             status_line = self.status_line(200)
-            response_headers = self.response_headers('')
+            response_headers = self.response_headers(request, '')
             empty_line = '\r\n'
             response_body = "<b> file has been deleted </b>"
             return f"{status_line}{response_headers}{empty_line}{response_body}", None  
@@ -200,9 +200,25 @@ class HttpServer(TcpServer):
             with open (filename, 'wb') as fd:
                 fd.write(request.payload.encode("utf-8"))
         status_line = self.status_line(self.response_code)
-        response_headers = self.response_headers('')
+        response_headers = self.response_headers(request, '')
         empty_line = "\r\n"
         return f"{status_line}{response_headers}{empty_line}", None
+
+    #handle cookie
+    def handle_cookie(self, request):
+        try : 
+            str = self.address[0] + ',' + request.headers['user-agent']
+            with open ('.cookie', 'a+') as f:
+                f.seek(0)
+                if not str in f.read():
+                    f.seek(2)
+                    f.write(str + '\n')
+                    return 'id=123456'
+                else:
+                    return None
+
+        except :
+           return None
 
     #create a status line
     def status_line(self, status_code):
@@ -210,7 +226,7 @@ class HttpServer(TcpServer):
         return status_line
 
     #create response headers
-    def response_headers (self, extra_headers):
+    def response_headers (self, request, extra_headers):
         #get the current date & time
         now = datetime.now()
         stamp = mktime(now.timetuple())
@@ -218,6 +234,9 @@ class HttpServer(TcpServer):
         self.headers['Date'] = current_date_time
         general_headers = ''.join(f"{header}: {self.headers[header]}\r\n" for header in self.headers)
         entity_headers = ''.join(f"{header}: {extra_headers[header]}\r\n" for header in extra_headers)
+        cookie = self.handle_cookie(request)
+        if cookie:
+            entity_headers += 'Set-Cookie:' + cookie + '\r\n'
         response_headers = general_headers + entity_headers
         return response_headers
     
@@ -247,7 +266,7 @@ class HttpServer(TcpServer):
     #handle error
     def handle_errors(self, request, error_code):
         status_line = self.status_line(error_code)
-        response_headers = self.response_headers('')
+        response_headers = self.response_headers(request, '')
         error_file = errors_dir + '/' + str(error_code) + '.html'
         with open(error_file) as f:
             response_body = f.read()
