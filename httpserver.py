@@ -14,6 +14,7 @@ import os
 from wsgiref.handlers import format_date_time
 from datetime import datetime
 from time import mktime
+import pytz
 import mimetypes
 from configparser import ConfigParser, ExtendedInterpolation
 import logging
@@ -121,8 +122,7 @@ class HttpServer(TcpServer):
     def handle_request(self, request_data):
         request = HttpRequest(request_data)
         #if request data has any errors
-       # if request.error or 'host' not in request.headers.keys():
-        if request.error :
+        if request.error or 'host' not in request.headers.keys():
             self.response_code = 400
             response, fd = self.handle_errors(request, self.response_code)
         else:
@@ -183,6 +183,26 @@ class HttpServer(TcpServer):
             empty_line = '\r\n'
             response_body = "<b> file has been deleted </b>"
             return f"{status_line}{response_headers}{empty_line}{response_body}", None  
+    
+    #handle put request
+    def handle_PUT(self, request):
+        filename = self.check_uri(request.uri)
+        if filename == None:
+            filename = request.uri.strip('/')
+            self.response_code = 201
+        else : 
+            self.response_code = 204
+        filetype = mimetypes.guess_type(filename)[0]
+        if filetype == 'text/html':
+            with open (filename, 'w') as fd:
+                fd.write(request.payload)
+        else:
+            with open (filename, 'wb') as fd:
+                fd.write(request.payload.encode("utf-8"))
+        status_line = self.status_line(self.response_code)
+        response_headers = self.response_headers('')
+        empty_line = "\r\n"
+        return f"{status_line}{response_headers}{empty_line}", None
 
     #create a status line
     def status_line(self, status_code):
@@ -240,7 +260,8 @@ class HttpServer(TcpServer):
             ref = request.headers['referer'].lstrip()
         else:
             ref = '-'
-        mesg = f"{self.address[0]} -  - [{datetime.now().strftime('%d/%b/%Y:%H:%M:%S %Z')}] \"{request.method} {request.uri} {request.version}\" {self.response_code} {file_size} \"{ref}\" \"{request.headers['user-agent'].lstrip()}\""
+        IST =  pytz.timezone('Asia/Kolkata')
+        mesg = f"{self.address[0]} -  - [{datetime.now(IST).strftime('%d/%b/%Y:%H:%M:%S %z')}] \"{request.method} {request.uri} {request.version}\" {self.response_code} {file_size} \"{ref}\" \"{request.headers['user-agent'].lstrip()}\""
         logger.info(mesg)
 
 class HttpRequest:
