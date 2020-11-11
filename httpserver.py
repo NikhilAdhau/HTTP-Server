@@ -60,13 +60,13 @@ class TcpServer ():
         #while True:
         request_data = clientSocket.recv(1024).decode()
         print (request_data)   
-        response, fd = self.handle_request(request_data)
+        response, ffile = self.handle_request(request_data)
         #print (f"response ----- \n {response}")
         clientSocket.sendall(response.encode())
-        if fd:
+        if ffile:
             try :
-                clientSocket.sendfile(fd)
-                fd.close()
+                with open (ffile, 'rb') as fd:
+                    clientSocket.sendfile(fd)
             except:
                  pass
         clientSocket.close()
@@ -125,20 +125,20 @@ class HttpServer(TcpServer):
         #if request data has any errors
         if request.error or 'host' not in request.headers.keys():
             self.response_code = 400
-            response, fd = self.handle_errors(request, self.response_code)
+            response, ffile = self.handle_errors(request, self.response_code)
         else:
             #using getattr to handle the particular method returned from the request method
             #getattr because we don't know the name of the method at the time
             try:
-                response, fd = getattr(self, f'handle_{request.method}')(request)
+                response, ffile = getattr(self, f'handle_{request.method}')(request)
             except AttributeError:
                 #as HEAD method is similar to GET method
                 if request.method == 'HEAD':
-                    response, fd = self.handle_GET(request)
+                    response, ffile = self.handle_GET(request)
                 else:
                     self.response_code = 501
-                    response, fd = self.handle_errors(request, self.response_code)
-        return response, fd
+                    response, ffile = self.handle_errors(request, self.response_code)
+        return response, ffile
 
     #handle GET request
     def handle_GET(self, request):
@@ -156,20 +156,20 @@ class HttpServer(TcpServer):
             if redirect_code:
                 if 'if-modified-since' in request.headers.keys() and request.headers['if-modified-since'].lstrip() == last_modified:
                     response_body = ''
-                    fd = None
+                    ffile = None
                     self.response_code = 304
                 else:
                     response_body = ''
-                    fd = None
+                    ffile = None
                     extra_headers.update({ 'Location' : filename})
                     self.response_code = redirect_code
             else:
                 if 'if-modified-since' in request.headers.keys() and request.headers['if-modified-since'].lstrip() == last_modified:
                     response_body = ''
-                    fd = None
+                    ffile = None
                     self.response_code = 304
                 else:
-                    response_body, fd = self.response_body(filename)
+                    response_body, ffile = self.response_body(filename)
                     self.response_code = 200
             status_line = self.status_line(self.response_code)
             extra_headers.update({'Content-Length' : self.file_size, 'Last-Modified' : last_modified,  'Content-Type' : file_type})
@@ -179,7 +179,7 @@ class HttpServer(TcpServer):
                 self.handle_logging(request)
                 return f"{status_line}{response_headers}{empty_line}{response_body}", None 
             self.handle_logging(request, self.file_size)
-            return f"{status_line}{response_headers}{empty_line}{response_body}", fd
+            return f"{status_line}{response_headers}{empty_line}{response_body}", ffile
 
 
     #handle post request
@@ -303,9 +303,8 @@ class HttpServer(TcpServer):
             with open(filename, 'r') as f:
                 response_body = f.read()
         else:
-            f = open (filename, 'rb')
             response_body = ''
-        return response_body, f
+        return response_body, filename
 
     #handle error
     def handle_errors(self, request, error_code):
