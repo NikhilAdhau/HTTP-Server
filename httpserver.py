@@ -18,6 +18,7 @@ import pytz
 import mimetypes
 from configparser import ConfigParser, ExtendedInterpolation
 import logging
+import uuid
 
 
 class TcpServer ():
@@ -224,22 +225,30 @@ class HttpServer(TcpServer):
 
     #handle cookie
     def handle_cookie(self, request):
-        if 'cookie' not in request.headers.keys():
-            try : 
-                str = self.address[0] + ',' + request.headers['user-agent']
-                with open ('.cookie', 'a+') as f:
+        try : 
+            str = self.address[0] + ',' + request.headers['user-agent']
+            with open ('.cookie', 'a+') as f:
+                if 'cookie' in request.headers.keys():
+                    str1 += str + ',' + request.headers['cookie']
+                    print (str)
                     f.seek(0)
-                    if not str in f.read():
+                    if  str1 not in f.read():
+                        print ('cookie-value not found')
                         f.seek(2)
-                        f.write(str + '\n')
-                        return 'id=123456'
+                        id = uuid.uuid1()
+                        f.write(f'{str}, id={id}\n')
+                        return f'id={id}'
                     else:
                         return None
-
-            except :
-               return None
-        else:
-            return None
+                    
+                else:
+                    print ('cookie not found')
+                    id = uuid.uuid1()
+                    f.write(f'{str}, id={id}\n')
+                    return f'id={id}'
+                    
+        except :
+           return None
 
     #create a status line
     def status_line(self, status_code):
