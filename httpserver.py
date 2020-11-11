@@ -38,7 +38,7 @@ class TcpServer ():
             print (f"Socket can not be bound to {self.port} : {msg}")
             sys.exit(1)
         #start listening
-        self.serverSocket.listen(5)
+        self.serverSocket.listen(100)
         print (f'HTTP server listening at address \"{self.serverSocket.getsockname()[0]}:{self.serverSocket.getsockname()[1]}\"\n---------------------------------------------------------------------------')
 
     def serve (self):
@@ -147,13 +147,19 @@ class HttpServer(TcpServer):
             self.response_code = 404
             return self.handle_errors(request, self.response_code)
         else:
-            response_body, fd = self.response_body(filename)
-            self.response_code = 200
-            status_line = self.status_line(self.response_code)
             file_info = os.stat(filename)
             self.file_size = file_info.st_size
             file_type = mimetypes.guess_type(filename)[0]
-            extra_headers = {'Content-Length' : self.file_size, 'Last-Modified' : format_date_time(file_info.st_mtime), 'Content-Type' : file_type}
+            last_modified = format_date_time(file_info.st_mtime)
+            if 'if-modified-since' in request.headers.keys() and request.headers['if-modified-since'].lstrip() == last_modified:
+                response_body = ''
+                fd = None
+                self.response_code = 304
+            else:
+                response_body, fd = self.response_body(filename)
+                self.response_code = 200
+            status_line = self.status_line(self.response_code)
+            extra_headers = {'Content-Length' : self.file_size, 'Last-Modified' : last_modified,  'Content-Type' : file_type}
             response_headers = self.response_headers(request, extra_headers)
             empty_line = "\r\n"
             if request.method == 'HEAD':
@@ -206,19 +212,22 @@ class HttpServer(TcpServer):
 
     #handle cookie
     def handle_cookie(self, request):
-        try : 
-            str = self.address[0] + ',' + request.headers['user-agent']
-            with open ('.cookie', 'a+') as f:
-                f.seek(0)
-                if not str in f.read():
-                    f.seek(2)
-                    f.write(str + '\n')
-                    return 'id=123456'
-                else:
-                    return None
+        if 'cookie' not in request.headers.keys():
+            try : 
+                str = self.address[0] + ',' + request.headers['user-agent']
+                with open ('.cookie', 'a+') as f:
+                    f.seek(0)
+                    if not str in f.read():
+                        f.seek(2)
+                        f.write(str + '\n')
+                        return 'id=123456'
+                    else:
+                        return None
 
-        except :
-           return None
+            except :
+               return None
+        else:
+            return None
 
     #create a status line
     def status_line(self, status_code):
@@ -247,7 +256,7 @@ class HttpServer(TcpServer):
         if len(filename) == 0:
             filename = "index.html"
         #if the file is present in the directory it will return the filename
-        if os.path.exists(filename):
+        if os.path.isfile(filename):
             return filename
         else:
             return None
