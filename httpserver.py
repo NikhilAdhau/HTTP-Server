@@ -141,7 +141,8 @@ class HttpServer(TcpServer):
 
     #handle GET request
     def handle_GET(self, request):
-        filename= self.check_uri(request.uri)
+        extra_headers = {}
+        filename, redirect_code = self.check_uri(request.uri)
         #if the requested file is not found
         if filename == None:
             self.response_code = 404
@@ -151,15 +152,26 @@ class HttpServer(TcpServer):
             self.file_size = file_info.st_size
             file_type = mimetypes.guess_type(filename)[0]
             last_modified = format_date_time(file_info.st_mtime)
-            if 'if-modified-since' in request.headers.keys() and request.headers['if-modified-since'].lstrip() == last_modified:
-                response_body = ''
-                fd = None
-                self.response_code = 304
+            if redirect_code:
+                if 'if-modified-since' in request.headers.keys() and request.headers['if-modified-since'].lstrip() == last_modified:
+                    response_body = ''
+                    fd = None
+                    self.response_code = 304
+                else:
+                    response_body = ''
+                    fd = None
+                    extra_headers.update({ 'Location' : filename})
+                    self.response_code = redirect_code
             else:
-                response_body, fd = self.response_body(filename)
-                self.response_code = 200
+                if 'if-modified-since' in request.headers.keys() and request.headers['if-modified-since'].lstrip() == last_modified:
+                    response_body = ''
+                    fd = None
+                    self.response_code = 304
+                else:
+                    response_body, fd = self.response_body(filename)
+                    self.response_code = 200
             status_line = self.status_line(self.response_code)
-            extra_headers = {'Content-Length' : self.file_size, 'Last-Modified' : last_modified,  'Content-Type' : file_type}
+            extra_headers.update({'Content-Length' : self.file_size, 'Last-Modified' : last_modified,  'Content-Type' : file_type})
             response_headers = self.response_headers(request, extra_headers)
             empty_line = "\r\n"
             if request.method == 'HEAD':
@@ -257,9 +269,23 @@ class HttpServer(TcpServer):
             filename = "index.html"
         #if the file is present in the directory it will return the filename
         if os.path.isfile(filename):
-            return filename
+            return filename, None
         else:
-            return None
+            try:
+                with open ('.htaccess', 'r+') as f:
+                    lines = f.readlines()
+                    for line in lines:
+                        if filename in line :
+                            field = line.split()
+                            filename = field[2]
+                            status_code = int(field[0])
+                            print (filename, status_code)
+                            return filename, status_code
+                    return None, None
+
+            except:
+                print (" '.htaccess ' file not found")
+                return None, None
     
     #handle response_body
     def response_body(self, filename):
@@ -289,7 +315,11 @@ class HttpServer(TcpServer):
         else:
             ref = '-'
         IST =  pytz.timezone('Asia/Kolkata')
-        mesg = f"{self.address[0]} -  - [{datetime.now(IST).strftime('%d/%b/%Y:%H:%M:%S %z')}] \"{request.method} {request.uri} {request.version}\" {self.response_code} {file_size} \"{ref}\" \"{request.headers['user-agent'].lstrip()}\""
+        try :
+            user_agent = request.headers['user-agent'].lstrip()
+        except :
+            user_agent = ''
+        mesg = f"{self.address[0]} -  - [{datetime.now(IST).strftime('%d/%b/%Y:%H:%M:%S %z')}] \"{request.method} {request.uri} {request.version}\" {self.response_code} {file_size} \"{ref}\" \"user_agent\""
         logger.info(mesg)
 
 class HttpRequest:
