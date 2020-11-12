@@ -19,6 +19,7 @@ import mimetypes
 from configparser import ConfigParser, ExtendedInterpolation
 import logging
 import uuid
+import gzip
 
 
 class TcpServer ():
@@ -66,9 +67,16 @@ class TcpServer ():
         if ffile:
             try :
                 with open (ffile, 'rb') as fd:
-                    clientSocket.sendfile(fd)
+                    #gzip.compress(fd.read())
+                    if 'accept-encode' in request.headers.keys():
+                        if  'gzip' in request.headers['accept-encoding']:
+                            clientSocket.sendall(gzip.compress(fd.read()))
+                        else:
+                            clientSocket.sendfile(fd)
+                    else:
+                        clientSocket.sendfile(fd)
             except:
-                 pass
+                pass
         clientSocket.close()
         
     def handle_request(self, request_data):
@@ -170,6 +178,13 @@ class HttpServer(TcpServer):
                     self.response_code = 304
                 else:
                     response_body, ffile = self.response_body(filename)
+                    #try:
+                    if 'accept-encoding' in request.headers.keys():
+                        if 'gzip' in request.headers['accept-encoding'] and ffile :
+                            extra_headers.update({ 'Content-Encoding' : 'gzip'})
+
+                    #except:
+                        #print ('in exception')
                     self.response_code = 200
             status_line = self.status_line(self.response_code)
             extra_headers.update({'Content-Length' : self.file_size, 'Last-Modified' : last_modified,  'Content-Type' : file_type})
@@ -177,7 +192,7 @@ class HttpServer(TcpServer):
             empty_line = "\r\n"
             if request.method == 'HEAD':
                 self.handle_logging(request)
-                return f"{status_line}{response_headers}{empty_line}{response_body}", None 
+                return f"{status_line}{response_headers}{empty_line}", None 
             self.handle_logging(request, self.file_size)
             return f"{status_line}{response_headers}{empty_line}{response_body}", ffile
 
@@ -269,7 +284,7 @@ class HttpServer(TcpServer):
             entity_headers += 'Set-Cookie:' + cookie + '\r\n'
         response_headers = general_headers + entity_headers
         return response_headers
-    
+   # 
     #handle the URI
     #it returns the file requested as well as it's metadata
     def check_uri (self, filename):
@@ -299,9 +314,16 @@ class HttpServer(TcpServer):
     #handle response_body
     def response_body(self, filename):
         file_type = mimetypes.guess_type(filename)[0]
-        if file_type == 'text/html':
+        #try:
+        #    if 'gzip' in request.headers['accept-encoding']:
+        #        response_body = ''
+        #        return response_body, None
+        #except:
+        #    pass
+        if file_type == 'text/html' or file_type == 'text/plain':
             with open(filename, 'r') as f:
                 response_body = f.read()
+            filename = None 
         else:
             response_body = ''
         return response_body, filename
@@ -354,6 +376,8 @@ class HttpRequest:
     def request_line (self, request_line):
         try:
             (self.method, self.uri, self.version) = request_line.split()
+            if self.version.split('/')[0] != 'HTTP':
+                self.error = True
         except ValueError:
             self.error = True
 
